@@ -1,0 +1,34 @@
+version: "3.3"
+
+services:
+  sonarqube:
+    image: sonarqube:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar  # Change this for security
+      SONAR_WEB_JAVAOPTS: "-Xmx2g -Xms512m"
+    volumes:
+      - /home/tvse-user/sonar/sonarqube_data:/opt/sonarqube/data
+      - /home/tvse-user/sonar/sonarqube_extensions:/opt/sonarqube/extensions
+      - /home/tvse-user/sonar/sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
+
+  db:
+    image: postgres:16  # Updated to latest LTS version
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar  # Change this for security
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - /home/tvse-user/sonar/postgresql_data:/var/lib/postgresql/data
+    restart: unless-stopped
