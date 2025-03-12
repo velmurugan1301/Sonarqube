@@ -1,0 +1,55 @@
+version: '3.3'
+services:
+  sonarqube:
+    image: sonarqube:8.9.2-community
+    depends_on:
+      - db
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar #tochange
+    volumes:
+      - /home/tvse-user/sonar/sonarqube_data:/opt/sonarqube/data
+      - /home/tvse-user/sonar/sonarqube_extensions:/opt/sonarqube/extensions
+      - /home/tvse-user/sonar/sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "9000:9000"
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.foo == worker1
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 2548M
+        reservations:
+          memory: 512M
+  db:
+    image: postgres:12
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar #tochange
+    volumes:
+      - /home/tvse-user/sonar/postgresql:/var/lib/postgresql
+      - /home/tvse-user/sonar/postgresql_data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.foo == worker1
+      update_config:
+        parallelism: 2
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1048M
+        reservations:
+          memory: 512M
+
