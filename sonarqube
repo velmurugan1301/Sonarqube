@@ -1,0 +1,167 @@
+create project for java applaication:-
+=======================================
+
+for ui and api:-
+
+firt create sonarscaner to in jenkins
+update cred in jenkins
+add sonar server in manage jenkins
+create token-> login sonar->goto Administration->user->create token
+
+ SONAR_PROJECT_KEY = "${env.JOB_NAME}"
+ SONAR_SCANNER_HOME = tool 'sonarqube-scanner'
+
+
+ stage('SonarQube Analysis') {
+             
+            steps {
+                script {
+                    def character = "${params.environment}"
+                    echo "$character"
+                    
+                    // Check the character
+                    if (character == 'utm') {
+                        echo 'Character is "uattm", so sonarqube vaildation is start...'
+                        withCredentials([string(credentialsId: 'sonar-uat', variable: 'SONAR_TOKEN')]) {
+                            withSonarQubeEnv('sonar') {
+                                sh '''
+                                    mvn clean compile
+                                    ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
+                                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                    -Dsonar.sources=. \
+                                    -Dsonar.host.url=http://172.22.17.187:9000/ \
+                                    -Dsonar.login=${SONAR_TOKEN} \
+                                    -Dsonar.java.binaries=target/classes
+                                '''
+                            }
+                            echo 'SonarQube Analysis Completed'
+                        }
+                    }
+                }    
+            }
+        }
+        
+        stage('Quality Gate Check') {
+            steps {
+                script {
+                    def character = "${params.environment}"
+                    echo "$character"
+                    
+                    // Check the character
+                    if (character == 'utm') {
+                        echo 'Character is "uattm", so sonarqube vaildation is start...'
+                        timeout(time: 5, unit: 'MINUTES') {
+                            def qualityGate = waitForQualityGate()
+                            if (qualityGate.status != 'OK') {
+                                error "Pipeline failed due to SonarQube Quality Gate failure!"
+                            }    
+                        }
+                    }
+                }
+            }
+        }
+
+
+create project using gitlab cli:-
+==================================
+
+create runner on which server to run code
+1.create gitlab runner
+
+Then create sonar scanner in gitlab runner server:-
+
+2.wget -O sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+3.sudo unzip sonar-scanner.zip -d /opt
+4.sudo mv /opt/sonar-scanner-* /opt/sonar-scanner
+5.echo 'export PATH=$PATH:/opt/sonar-scanner/bin' >> ~/.bashrc
+6.echo 'export SONAR_SCANNER_OPTS="-server"' >> ~/.bashrc
+7.source ~/.bashrc
+8.sonar-scanner --version
+
+.gitlab-cli.yml file:-
+======================
+
+ui file:-
+---------
+before_script:
+  - docker login auctionindia.azurecr.io -u $AZ_UR -p $AZ_PD
+
+variables:
+  BASE_IMAGE_NAME: auctionindia.azurecr.io/adminapp-dev:$CI_JOB_ID
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+  GIT_DEPTH: "0"  # Fetch all branches for SonarQube analysis
+
+stages:
+  - sonar_scan 
+  - deploy
+
+sonarqube-check:
+  stage: sonar_scan
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script:
+    - /opt/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=admin-app_${CI_COMMIT_REF_NAME} -Dsonar.host.url=http://172.22.34.73:9000 -Dsonar.token=$SONAR_TOKEN
+  tags: [auctionindia-runner]
+  only:
+    - dev
+
+build_stage:
+  stage: deploy
+  script:
+    - docker build . -t $BASE_IMAGE_NAME
+    - docker push $BASE_IMAGE_NAME
+    - sed -i "s|old-image|$BASE_IMAGE_NAME|" k8s/dev/dep.yaml
+    - kubectl apply -f k8s/dev/dep.yaml --namespace dev
+  tags: [auctionindia-runner]
+  only:
+    - dev
+
+    
+api file:-
+------------
+before_script:
+  - docker login auctionindia.azurecr.io -u $AZ_UR -p $AZ_PD
+
+variables:
+  BASE_IMAGE_NAME: auctionindia.azurecr.io/auction-dev:$CI_JOB_ID
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+  GIT_DEPTH: "0"  # Fetch all branches for SonarQube analysis
+
+stages:
+  - sonar_scan 
+  - deploy
+
+sonar_scan:
+  stage: sonar_scan
+  image: mcr.microsoft.com/dotnet/sdk:6.0  # Use appropriate .NET SDK version
+  script:
+    - |
+      if ! ls *.csproj 1> /dev/null 2>&1; then
+        echo "No .csproj file found! Skipping SonarQube analysis."
+        exit 1
+      fi
+    - echo "Starting SonarQube analysis..."
+    - dotnet sonarscanner begin /k:"auction-api-${CI_COMMIT_REF_NAME}" /d:sonar.host.url="http://172.22.34.73:9000" /d:sonar.token="$SONAR_TOKEN"
+    - dotnet build
+    - dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+  tags: [auctionindia-runner]
+  only:
+    - Dev
+build_stage:
+  stage: deploy
+  script:
+    - docker build . -t $BASE_IMAGE_NAME
+    - docker push $BASE_IMAGE_NAME
+    - sed -i "s|old-image|$BASE_IMAGE_NAME|" k8s/dev/dep.yaml
+    - kubectl apply -f k8s/dev/dep.yaml --namespace dev
+
+  tags: [auctionindia-runner]
+  only:
+    - Dev
+
+
