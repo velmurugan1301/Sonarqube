@@ -1,0 +1,38 @@
+create a new database:-
+  ->CREATE DATABASE sonar_sdp OWNER sonar;
+If you want a separate user for sonar_sdp, create it like this:-
+  ->CREATE USER sonar_sdp WITH ENCRYPTED PASSWORD 'your_secure_password';
+  ->ALTER DATABASE sonar_sdp OWNER TO sonar_sdp;
+Verify the Database Creation:-
+  ->\l
+
+Copy the backup file into the PostgreSQL container:-
+  ->docker cp /home/<username>/sonar_backup.sql <new-postgres-container-id>:/sonar_backup.sql
+restore the backup:-
+  ->docker exec -i <new-postgres-container-id> psql -U sonar -d sonar_sdp < /sonar_backup.sql
+
+  ->docker exec -it <postgres-container-name> psql -U sonar_sdp -d sonar_sdp
+
+Check the User Permissions:-
+  ->SELECT grantee, privilege_type 
+FROM information_schema.role_table_grants 
+WHERE table_name = 'schema_migrations';
+
+Grant the necessary privileges:-
+  ->GRANT ALL PRIVILEGES ON DATABASE sonar TO sonar;
+GRANT ALL PRIVILEGES ON DATABASE sonar_sdp TO sonar_sdp;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO sonar;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO sonar_sdp;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sonar;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sonar_sdp;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO sonar;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO sonar_sdp;
+
+  ->GRANT SELECT, INSERT, UPDATE, DELETE ON schema_migrations TO sonar_sdp;
+  ->ALTER TABLE schema_migrations OWNER TO sonar_sdp;
+
+
+
+
+
+
