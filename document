@@ -1,0 +1,100 @@
+SONARQUBE 
+
+SonarQube is an open-source platform for continuous code quality inspection. It helps developers and DevOps teams analyze code, detect bugs, security vulnerabilities, and maintainability issues across multiple programming languages. 
+
+Why Use SonarQube? 
+
+Static Code Analysis – Identifies code smells, bugs, and vulnerabilities. 
+
+Multi-Language Support – Supports Java, Python, JavaScript, C#, and more. 
+
+Continuous Integration – Works with CI/CD pipelines (Jenkins, GitHub Actions, GitLab CI). 
+
+Security & Compliance – Ensures compliance with OWASP, SANS, and other security standards. 
+
+Dashboards & Reports – Provides detailed analysis and graphical reports. 
+
+Prerequisites: - 
+
+Minimum System Requirements: - 
+
+ 
+
+Required Software: - 
+Docker Compose: 
+
+Accessing SonarQube:- 
+
+Open http://<server-ip>:9000 
+
+Default credentials:  
+
+Username: admin 
+
+Password: admin 
+
+Integrating with Jenkins: - 
+
+Install SonarQube Scanner plugin in Jenkins 
+
+Go to Jenkins Dashboard → Manage Jenkins → Plugins. 
+
+Install "SonarQube Scanner" and "Quality Gates Plugin". 
+
+Restart Jenkins. 
+
+ 
+
+Configure SonarQube in Jenkins 
+
+Go to Manage Jenkins → Global Tool Configuration. 
+
+Find SonarQube Scanner → Add SonarQube. 
+
+Set:  
+
+Name: SonarQube 
+
+Installation Method: Install automatically 
+
+Path to Executable: sonar-scanner 
+
+Click Save. 
+
+Add SonarQube Server Credentials 
+
+Go to Manage Jenkins → Configure System. 
+
+Find SonarQube Servers → Add SonarQube. 
+
+Set:  
+
+Name: SonarQube 
+
+Server URL: http://<sonarqube-server>:9000 
+
+Authentication Token: Generate from SonarQube (Administration > Security > Tokens) 
+
+Click Save. 
+
+Creating a Webhook in SonarQube 
+
+Step 1: Open SonarQube Webhook Settings 
+
+Login to SonarQube (http://<sonarqube-server>:9000). 
+
+Navigate to Administration → Configuration → Webhooks. 
+
+Step 2: Add a New Webhook 
+
+Click Create. 
+
+Set the following:  
+
+Name: Jenkins Webhook 
+
+URL: http://<jenkins-server>/sonarqube-webhook/ 
+
+Click Save. 
+
+ 
