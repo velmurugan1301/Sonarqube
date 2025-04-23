@@ -106,9 +106,41 @@ sonarqube-check:
       - .sonar/cache
   script:
     - /opt/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=admin-app_${CI_COMMIT_REF_NAME} -Dsonar.host.url=http://172.22.34.73:9000 -Dsonar.token=$SONAR_TOKEN
+    - echo "Waiting for SonarQube to process results..."
+    - sleep 10  # Initial wait time
+    - echo "Checking SonarQube Quality Gate result..."
+    - |
+      MAX_RETRIES=5
+      RETRY_DELAY=10
+      ATTEMPT=0
+
+      while [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; do
+        RESPONSE=$(curl -s -u "$SONAR_TOKEN:" "http://172.22.34.73:9000/api/qualitygates/project_status?projectKey=admin-app_${CI_COMMIT_REF_NAME}")
+        echo "SonarQube API Response: $RESPONSE"  # Debugging output
+
+        SONAR_STATUS=$(echo $RESPONSE | jq -r .projectStatus.status)
+        echo "Attempt $((ATTEMPT+1)): Quality Gate status: $SONAR_STATUS"
+
+        if [ "$SONAR_STATUS" == "OK" ]; then
+          echo "Quality Gate passed!"
+          break
+        elif [ "$SONAR_STATUS" == "ERROR" ]; then
+          echo "Quality Gate failed! Stopping the pipeline."
+          exit 1
+        else
+          echo "SonarQube still processing, waiting..."
+          sleep "$RETRY_DELAY"
+          ATTEMPT=$((ATTEMPT+1))
+        fi
+      done
+
+      if [ "$SONAR_STATUS" != "OK" ]; then
+        echo "Quality Gate did not pass after multiple attempts. Stopping the pipeline."
+        exit 1
+      fi
   tags: [auctionindia-runner]
   only:
-    - dev
+    - uat
 
 build_stage:
   stage: deploy
@@ -116,19 +148,17 @@ build_stage:
     - docker build . -t $BASE_IMAGE_NAME
     - docker push $BASE_IMAGE_NAME
     - sed -i "s|old-image|$BASE_IMAGE_NAME|" k8s/dev/dep.yaml
-    - kubectl apply -f k8s/dev/dep.yaml --namespace dev
+    - kubectl apply -f k8s/dev/dep.yaml --namespace uat
   tags: [auctionindia-runner]
   only:
-    - dev
-
-    
+    - uat
 api file:-
-------------
+==========
 before_script:
   - docker login auctionindia.azurecr.io -u $AZ_UR -p $AZ_PD
 
 variables:
-  BASE_IMAGE_NAME: auctionindia.azurecr.io/auction-dev:$CI_JOB_ID
+  BASE_IMAGE_NAME: auctionindia.azurecr.io/auction-uat:$CI_JOB_ID
   SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
   GIT_DEPTH: "0"  # Fetch all branches for SonarQube analysis
 
@@ -138,7 +168,7 @@ stages:
 
 sonar_scan:
   stage: sonar_scan
-  image: mcr.microsoft.com/dotnet/sdk:6.0  # Use appropriate .NET SDK version
+  image: mcr.microsoft.com/dotnet/sdk:6.0
   script:
     - |
       if ! ls *.csproj 1> /dev/null 2>&1; then
@@ -149,19 +179,33 @@ sonar_scan:
     - dotnet sonarscanner begin /k:"auction-api-${CI_COMMIT_REF_NAME}" /d:sonar.host.url="http://172.22.34.73:9000" /d:sonar.token="$SONAR_TOKEN"
     - dotnet build
     - dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+    - echo "Installing jq..."
+    - apt-get update && apt-get install -y jq
+    - sleep 10
+
+    - echo "Checking SonarQube Quality Gate result..."
+    - |
+      SONAR_STATUS=$(curl -s -u "$SONAR_TOKEN:" "http://172.22.34.73:9000/api/qualitygates/project_status?projectKey=auction-api-${CI_COMMIT_REF_NAME}" | jq -r .projectStatus.status)
+      echo "Quality Gate status: $SONAR_STATUS"
+      if [ "$SONAR_STATUS" != "OK" ]; then
+        echo "Quality Gate failed! Stopping the pipeline."
+        exit 1
+      fi
   tags: [auctionindia-runner]
   only:
-    - Dev
+    - uat
 build_stage:
   stage: deploy
   script:
     - docker build . -t $BASE_IMAGE_NAME
     - docker push $BASE_IMAGE_NAME
     - sed -i "s|old-image|$BASE_IMAGE_NAME|" k8s/dev/dep.yaml
-    - kubectl apply -f k8s/dev/dep.yaml --namespace dev
-
+    - kubectl apply -f k8s/dev/dep.yaml --namespace uat
   tags: [auctionindia-runner]
   only:
-    - Dev
+    - uat
+
+
+ 
 
 
